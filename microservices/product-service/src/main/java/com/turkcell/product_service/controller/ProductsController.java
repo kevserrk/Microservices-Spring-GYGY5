@@ -1,28 +1,56 @@
 package com.turkcell.product_service.controller;
 
+import java.time.Instant;
 import java.util.UUID;
 
-import org.springframework.cloud.stream.function.StreamBridge;
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+
+import com.turkcell.product_service.entity.OutboxEvent;
+import com.turkcell.product_service.entity.OutboxStatus;
 import com.turkcell.product_service.event.TestEvent;
+import com.turkcell.product_service.repository.OutboxRepository;
+
 
 @RequestMapping("/api/products")
 @RestController
 public class ProductsController {
-    private final StreamBridge streamBridge;
+    private final OutboxRepository outboxRepository;
+    private final ObjectMapper objectMapper;
 
-    public ProductsController(StreamBridge streamBridge) {
-        this.streamBridge = streamBridge;
+    public ProductsController(OutboxRepository outboxRepository, ObjectMapper objectMapper) {
+        this.outboxRepository = outboxRepository;
+        this.objectMapper = objectMapper;
     }
 
     @GetMapping
     public String test(@RequestParam String message)  {
-        var event = new TestEvent(message, UUID.randomUUID());
-        streamBridge.send("testEvent-out-0", event);
-        return "Başarılı";
-    }
+    UUID id = UUID.randomUUID();
+    UUID eventId = UUID.randomUUID();
+    var event = new TestEvent(eventId, message, id);
+    //streamBridge.send("testEvent-out-0", event);  
+    
+    outboxEvent.setId(eventId);
+    outboxEvent.setAggregateType("Product");
+    outboxEvent.setAggregateId(id.toString());
+    outboxEvent.setEventType("testEvent");
+    outboxEvent.setPayload(toJson(event));
+    outboxEvent.setStatus(OutboxStatus.PENDING);
+    outboxEvent.setCreatedAt(Instant.now());
+
+    outboxRepository.save(outboxEvent);
+
+    return "Başarılı";
+}
+
+private String toJson(Object o)
+{
+    try { return objectMapper.writeValueAsString(o);}
+    catch(Exception e) { throw new RuntimeException(e); }
+} 
+
 }
