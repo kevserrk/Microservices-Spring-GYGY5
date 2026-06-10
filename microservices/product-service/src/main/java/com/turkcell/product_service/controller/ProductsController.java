@@ -33,7 +33,8 @@ public class ProductsController {
     UUID eventId = UUID.randomUUID();
     var event = new TestEvent(eventId, message, id);
     //streamBridge.send("testEvent-out-0", event);  
-    
+
+    OutboxEvent outboxEvent = new OutboxEvent();
     outboxEvent.setId(eventId);
     outboxEvent.setAggregateType("Product");
     outboxEvent.setAggregateId(id.toString());

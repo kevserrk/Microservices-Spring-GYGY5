@@ -3,30 +3,25 @@ services:
     image: apache/kafka:4.2.0
     container_name: kafka
     ports:
-      - "9092:9092"          # host -> broker (EXTERNAL listener)
+      - "9092:9092"
     environment:
-      # --- KRaft kimlik ve roller ---
       KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller        # tek node hem broker hem controller
+      KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
- 
-      # --- Listener tanımları ---
-      # Üç ayrı listener: container içi (INTERNAL), host (EXTERNAL), controller
+
       KAFKA_LISTENERS: INTERNAL://0.0.0.0:19092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:19092,EXTERNAL://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
- 
-      # --- Tek node olduğu için replikasyon faktörleri 1 ---
+
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
- 
-      # --- Geliştirme kolaylıkları ---
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0      # consumer'lar hızlı bağlansın
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"        # eğitimde pratik; prod'da false yapın
-      KAFKA_NUM_PARTITIONS: 3                         # otomatik topic'ler 3 partition'la doğsun
+
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
@@ -36,12 +31,31 @@ services:
       retries: 10
     networks:
       - kafka-net
- 
+
+  debezium:
+    image: debezium/connect:2.7
+    container_name: debezium
+    ports:
+      - "8083:8083"
+    environment:
+      BOOTSTRAP_SERVERS: kafka:19092
+      GROUP_ID: 1
+      CONFIG_STORAGE_TOPIC: connect_configs
+      OFFSET_STORAGE_TOPIC: connect_offsets
+      STATUS_STORAGE_TOPIC: connect_statuses
+    depends_on:
+      kafka:
+        condition: service_healthy
+      product-db:
+        condition: service_started
+    networks:
+      - kafka-net
+
   kafka-ui:
-    image: kafbat/kafka-ui:latest     # provectuslabs/kafka-ui'nin aktif geliştirilen fork'u
+    image: kafbat/kafka-ui:latest
     container_name: kafka-ui
     ports:
-      - "8080:8080"                   # http://localhost:8080
+      - "8080:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
@@ -51,18 +65,28 @@ services:
         condition: service_healthy
     networks:
       - kafka-net
- 
+
   product-db:
     image: postgres:17
     container_name: product-db
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=4
+      - -c
+      - max_wal_senders=4
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: test12345
       POSTGRES_DB: products
     ports:
-      - "5433:5432" # sağ taraf daima uygulamanın kendi portu
+      - "5433:5432"
     volumes:
       - product-db-data:/var/lib/postgresql/data
+    networks:
+      - kafka-net
 
   user-db:
     image: postgres:17
@@ -72,9 +96,10 @@ services:
       POSTGRES_PASSWORD: test12345
       POSTGRES_DB: users
     ports:
-      - "5434:5432" # sağ taraf daima uygulamanın kendi portu
+      - "5434:5432"
     volumes:
       - user-db-data:/var/lib/postgresql/data
+
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: pgadmin-gygy5
@@ -88,7 +113,7 @@ volumes:
   kafka-data:
   product-db-data:
   user-db-data:
- 
+
 networks:
   kafka-net:
     driver: bridge
