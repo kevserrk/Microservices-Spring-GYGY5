@@ -103,6 +103,3 @@ volumes:
   product-db-data:
   user-db-data:
  
-networks:
-  kafka-net:
-    driver: bridge
